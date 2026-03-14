@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Empathy Engine</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 560px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      background: #0f0f12;
+      color: #e4e4e7;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      color: #71717a;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 0.35rem;
+      color: #a1a1aa;
+    }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 0.75rem;
+      border: 1px solid #3f3f46;
+      border-radius: 8px;
+      background: #18181b;
+      color: #e4e4e7;
+      font-size: 1rem;
+      resize: vertical;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: #6366f1;
+    }
+    button {
+      margin-top: 0.75rem;
+      padding: 0.6rem 1.2rem;
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:hover { background: #4f46e5; }
+    button:disabled {
+      background: #3f3f46;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: #18181b;
+      border-radius: 8px;
+      border: 1px solid #3f3f46;
+    }
+    .result h3 { font-size: 0.95rem; margin-bottom: 0.5rem; color: #a1a1aa; }
+    .result .emotion { text-transform: capitalize; font-weight: 600; color: #a5b4fc; }
+    .result .params { font-size: 0.85rem; color: #71717a; margin-top: 0.25rem; }
+    audio {
+      width: 100%;
+      margin-top: 0.75rem;
+      border-radius: 8px;
+    }
+    .error { color: #f87171; font-size: 0.9rem; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>The Empathy Engine</h1>
+  <p class="subtitle">Enter text. We detect emotion and synthesize speech with matching tone (rate &amp; volume).</p>
+
+  <label for="text">Text to speak</label>
+  <textarea id="text" name="text" placeholder="e.g. This is the best news ever! Or: I'm really frustrated with this issue."></textarea>
+  <button id="btn" type="button">Generate speech</button>
+
+  <div id="result" class="result" style="display: none;">
+    <h3>Detected emotion</h3>
+    <p><span class="emotion" id="emotion"></span></p>
+    <p class="params" id="params"></p>
+    <audio id="audio" controls></audio>
+  </div>
+  <p id="error" class="error" style="display: none;"></p>
+
+  <script>
+    const textEl = document.getElementById('text');
+    const btn = document.getElementById('btn');
+    const resultDiv = document.getElementById('result');
+    const emotionEl = document.getElementById('emotion');
+    const paramsEl = document.getElementById('params');
+    const audioEl = document.getElementById('audio');
+    const errorEl = document.getElementById('error');
+
+    btn.addEventListener('click', async () => {
+      const text = textEl.value.trim();
+      if (!text) return;
+      btn.disabled = true;
+      errorEl.style.display = 'none';
+      resultDiv.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/synthesize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorEl.textContent = data.error || 'Request failed';
+          errorEl.style.display = 'block';
+          return;
+        }
+        emotionEl.textContent = data.emotion;
+        paramsEl.textContent = 'Rate ' + data.rate + ', pitch ' + (data.pitch || '—') + ', volume ' + data.volume;
+        // Play from base64 audio (MP3 from gTTS) via blob URL
+        if (audioEl.src) URL.revokeObjectURL(audioEl.src);
+        const bin = Uint8Array.from(atob(data.audio_base64), c => c.charCodeAt(0));
+        const mime = data.audio_type || 'audio/mpeg';
+        const blob = new Blob([bin], { type: mime });
+        audioEl.src = URL.createObjectURL(blob);
+        audioEl.onerror = () => {
+          errorEl.textContent = 'Audio could not be loaded. Try again or use the CLI.';
+          errorEl.style.display = 'block';
+        };
+        resultDiv.style.display = 'block';
+      } catch (e) {
+        errorEl.textContent = e.message || 'Network error';
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

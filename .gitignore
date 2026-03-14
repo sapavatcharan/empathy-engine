@@ -1,0 +1,11 @@
+venv/
+.env
+__pycache__/
+*.pyc
+*.wav
+.DS_Store
+*.egg-info/
+.eggs/
+test_output.wav
+static/output/*.wav
+sample_outputs/
